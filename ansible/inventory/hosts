@@ -1,0 +1,13 @@
+[masters]
+master ansible_host=192.168.31.20
+
+#[workers]
+# worker1 ansible_host=192.168.31.21
+# worker2 ansible_host=192.168.31.22
+# worker3 ansible_host=192.168.31.23
+
+[all:vars]
+ansible_user=ubuntu
+ansible_ssh_private_key_file=~/.ssh/id_rsa
+ansible_become=yes
+ansible_become_method=sudo

@@ -14,7 +14,7 @@ locals {
   }
   # VM base configurations
   vm_defaults = {
-    cores     = 3
+    cores     = 2
     memory    = 4096
     disk_size = 105
     tags      = ["node"]
@@ -34,13 +34,36 @@ locals {
   }
   # Configurações específicas para Master nodes
   nodes = {
-    "node0" = {
+    "MASTER" = {
       vmid          = 901
       ip_last_octet = 20
-      cores         = 3
+      cores         = 2
       memory        = 4096
-      # tags          = ["node1"]
+      tags          = ["master"]
     }
+    /*
+    "WORKER1" = {
+      vmid          = 902
+      ip_last_octet = 21
+      cores         = 2
+      memory        = 2048
+      tags          = ["worker1"]
+    }
+    "WORKER2" = {
+      vmid          = 903
+      ip_last_octet = 22
+      cores         = 2
+      memory        = 2048
+      tags          = ["worker2"]
+    }
+    "WORKER3" = {
+      vmid          = 904
+      ip_last_octet = 23
+      cores         = 2
+      memory        = 2048
+      tags          = ["worker3"]
+    }
+    */
   }
   # Combina nodes em um único mapa para uso geral
   vms = merge(local.nodes)
@@ -73,11 +96,22 @@ resource "proxmox_virtual_environment_vm" "master_nodes" {
   # CPU & Memory
   cpu {
     cores = each.value.cores
+    numa  = true
     type  = "host"
+    flags = [
+      "+pcid",
+      "+spec-ctrl",
+      "+aes"
+    ]
   }
+
+  machine = "q35"
+
   memory {
     dedicated = each.value.memory
+    
   }
+
 
   # Disk
   disk {
@@ -118,12 +152,28 @@ resource "proxmox_virtual_environment_vm" "master_nodes" {
   lifecycle {
     ignore_changes = [
       initialization,
-      disk
+      disk,
+      vga,
+      cpu,
+      memory,
+      machine
     ]
   }
 
 }
 
+output "MASTER" {
+  value = "ssh ubuntu@192.168.31.${local.nodes.MASTER.ip_last_octet}"
+}
+# output "WORKER1" {
+#   value = "ssh ubuntu@192.168.31.${local.nodes.WORKER1.ip_last_octet}"
+# }
+# output "WORKER2" {
+#   value = "ssh ubuntu@192.168.31.${local.nodes.WORKER2.ip_last_octet}"
+# }
+# output "WORKER3" {
+#   value = "ssh ubuntu@192.168.31.${local.nodes.WORKER3.ip_last_octet}"
+# }
 #-----------------------------------------------------------------------------------------
 terraform {
   required_providers {
@@ -140,7 +190,7 @@ terraform {
 
 provider "proxmox" {
   endpoint  = "https://192.168.31.180:8006/"
-  # api_token = "<TOKEN PROXMOX>"
+  api_token = "6215c36b-3cac-4335-b6d4-914420003088"
   insecure  = true
   ssh {
     agent    = true

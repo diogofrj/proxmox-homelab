@@ -1,0 +1,102 @@
+---
+- name: Configuração básica dos servidores
+  hosts: all
+  become: true
+  vars:
+    packages:
+      - curl
+      - wget
+      - vim
+      - git
+      - htop
+      - net-tools
+      - iptables-persistent
+      - python3-pip
+      - nfs-common
+      - apt-transport-https
+      - ca-certificates
+      - software-properties-common
+      - podman
+      - podman-docker
+    arquivos_config:
+      - src: files/authorized_keys
+        dest: /home/ubuntu/.ssh/authorized_keys
+      # - src: files/bashrc
+      #   dest: /home/ubuntu/.bashrc
+      - src: files/vimrc
+        dest: /home/ubuntu/.vimrc
+      # - src: files/sysctl.conf
+      #   dest: /etc/sysctl.conf
+    # sysctl_configs:
+    #   - name: net.ipv4.ip_forward
+    #     value: 1
+    #   - name: net.bridge.bridge-nf-call-iptables
+    #     value: 1
+
+  tasks:
+    - name: Atualizar cache do apt
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Instalar pacotes necessários
+      apt:
+        name: "{{ packages }}"
+        state: present
+        update_cache: yes
+
+    # - name: Criar diretórios necessários
+    #   file:
+    #     path: "{{ item }}"
+    #     state: directory
+    #     mode: '0755'
+    #     owner: ubuntu
+    #     group: ubuntu
+    #   loop:
+    #     - /home/ubuntu/.config
+    #     - /home/ubuntu/scripts
+    #     - /home/ubuntu/tools
+
+    - name: Copiar arquivos de configuração
+      copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+      loop: "{{ arquivos_config }}"
+
+    # - name: Configurar sysctl
+    #   sysctl:
+    #     name: "{{ item.name }}"
+    #     value: "{{ item.value }}"
+    #     state: present
+    #     reload: yes
+    #   loop: "{{ sysctl_configs }}"
+
+    - name: Configurar timezone
+      timezone:
+        name: America/Sao_Paulo
+
+    - name: Configurar locale
+      locale_gen:
+        name: pt_BR.UTF-8
+        state: present
+
+    - name: Configurar aliases úteis
+      lineinfile:
+        path: /home/ubuntu/.bashrc
+        line: "{{ item }}"
+        state: present
+      loop:
+        - "alias ll='ls -la'"
+        - "alias k='kubectl'"
+        - "alias tf='terraform'"
+        - "alias d='docker'"
+      become_user: ubuntu
+
+    - name: Garantir que o serviço SSH esteja rodando
+      service:
+        name: ssh
+        state: started
+        enabled: yes 
