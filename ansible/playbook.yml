@@ -1,102 +1,468 @@
 ---
-- name: Configuração básica dos servidores
-  hosts: all
+- name: Configuração do HAProxy
+  hosts: haproxy
   become: true
-  vars:
-    packages:
-      - curl
-      - wget
-      - vim
-      - git
-      - htop
-      - net-tools
-      - iptables-persistent
-      - python3-pip
-      - nfs-common
-      - apt-transport-https
-      - ca-certificates
-      - software-properties-common
-      - podman
-      - podman-docker
-    arquivos_config:
-      - src: files/authorized_keys
-        dest: /home/ubuntu/.ssh/authorized_keys
-      # - src: files/bashrc
-      #   dest: /home/ubuntu/.bashrc
-      - src: files/vimrc
-        dest: /home/ubuntu/.vimrc
-      # - src: files/sysctl.conf
-      #   dest: /etc/sysctl.conf
-    # sysctl_configs:
-    #   - name: net.ipv4.ip_forward
-    #     value: 1
-    #   - name: net.bridge.bridge-nf-call-iptables
-    #     value: 1
-
   tasks:
-    - name: Atualizar cache do apt
+    - name: Instalar HAProxy
       apt:
+        name: haproxy
+        state: present
         update_cache: yes
-        cache_valid_time: 3600
 
-    - name: Instalar pacotes necessários
+    - name: Configurar HAProxy
+      copy:
+        src: files/haproxy.cfg
+        dest: /etc/haproxy/haproxy.cfg
+        owner: root
+        group: root
+        mode: '0644'
+        validate: 'haproxy -c -f %s'
+      notify: restart haproxy
+
+    - name: Verificar sintaxe da configuração do HAProxy
+      command: haproxy -c -f /etc/haproxy/haproxy.cfg
+      changed_when: false
+      register: haproxy_check
+
+    - name: Exibir erros de configuração do HAProxy
+      fail:
+        msg: "{{ haproxy_check.stderr }}"
+      when: haproxy_check.rc != 0
+
+    - name: Garantir que o HAProxy está rodando
+      service:
+        name: haproxy
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: restart haproxy
+      service:
+        name: haproxy
+        state: restarted
+
+- name: Configuração básica de todos os nodes
+  hosts: master,worker
+  become: true
+  tasks:
+    - name: Configurar hosts
+      lineinfile:
+        path: /etc/hosts
+        line: "{{ item }}"
+        state: present
+      with_items:
+        - "192.168.31.21 master1"
+        - "192.168.31.22 master2"
+        - "192.168.31.23 master3"
+        - "192.168.31.24 worker1"
+        - "192.168.31.25 worker2"
+        - "192.168.31.26 worker3"
+        - "192.168.31.27 haproxy"
+
+    - name: Instalar pacotes básicos
       apt:
         name: "{{ packages }}"
         state: present
         update_cache: yes
 
-    # - name: Criar diretórios necessários
-    #   file:
-    #     path: "{{ item }}"
-    #     state: directory
-    #     mode: '0755'
-    #     owner: ubuntu
-    #     group: ubuntu
-    #   loop:
-    #     - /home/ubuntu/.config
-    #     - /home/ubuntu/scripts
-    #     - /home/ubuntu/tools
-
-    - name: Copiar arquivos de configuração
+    - name: Configurar módulos do kernel
       copy:
-        src: "{{ item.src }}"
-        dest: "{{ item.dest }}"
+        dest: /etc/modules-load.d/containerd.conf
+        content: |
+          overlay
+          br_netfilter
+
+    - name: Carregar módulos do kernel
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - overlay
+        - br_netfilter
+
+    - name: Configurar sysctl
+      copy:
+        dest: /etc/sysctl.d/99-kubernetes-cri.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables = 1
+          net.ipv4.ip_forward = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+
+    - name: Aplicar configurações sysctl
+      command: sysctl --system
+      changed_when: false
+
+    - name: Download Containerd
+      get_url:
+        url: "https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}/containerd-{{ containerd_version }}-linux-amd64.tar.gz"
+        dest: /tmp/containerd.tar.gz
+
+    - name: Extrair Containerd
+      unarchive:
+        src: /tmp/containerd.tar.gz
+        dest: /usr/local
+        remote_src: yes
+
+    - name: Download serviço Containerd
+      get_url:
+        url: https://raw.githubusercontent.com/containerd/containerd/main/containerd.service
+        dest: /etc/systemd/system/containerd.service
+
+    - name: Download Runc
+      get_url:
+        url: "https://github.com/opencontainers/runc/releases/download/v{{ runc_version }}/runc.amd64"
+        dest: /tmp/runc.amd64
+
+    - name: Instalar Runc
+      copy:
+        src: /tmp/runc.amd64
+        dest: /usr/local/sbin/runc
+        mode: '0755'
+        remote_src: yes
+
+    - name: Download CNI Plugins
+      get_url:
+        url: "https://github.com/containernetworking/plugins/releases/download/v{{ cni_plugins_version }}/cni-plugins-linux-amd64-v{{ cni_plugins_version }}.tgz"
+        dest: /tmp/cni-plugins.tgz
+
+    - name: Criar diretório CNI
+      file:
+        path: /opt/cni/bin
+        state: directory
+
+    - name: Extrair CNI Plugins
+      unarchive:
+        src: /tmp/cni-plugins.tgz
+        dest: /opt/cni/bin
+        remote_src: yes
+
+    - name: Configurar Containerd
+      shell: |
+        mkdir -p /etc/containerd
+        containerd config default | tee /etc/containerd/config.toml
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+
+    - name: Reiniciar Containerd
+      systemd:
+        name: containerd
+        state: restarted
+        daemon_reload: yes
+        enabled: yes
+
+    - name: Desabilitar swap
+      command: swapoff -a
+      changed_when: false
+
+    - name: Remover swap do fstab
+      replace:
+        path: /etc/fstab
+        regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+        replace: '# \1'
+
+    - name: Adicionar repositório Kubernetes
+      block:
+        - name: Criar diretório keyrings
+          file:
+            path: /etc/apt/keyrings
+            state: directory
+            mode: '0755'
+
+        - name: Download Kubernetes GPG key
+          get_url:
+            url: https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key
+            dest: /tmp/kubernetes.key
+
+        - name: Adicionar Kubernetes GPG key
+          shell: cat /tmp/kubernetes.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
+
+        - name: Adicionar repositório Kubernetes
+          apt_repository:
+            repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /
+            state: present
+            filename: kubernetes
+
+    - name: Instalar Kubernetes
+      apt:
+        name:
+          - "kubelet={{ k8s_version }}-1.1"
+          - "kubeadm={{ k8s_version }}-1.1"
+          - "kubectl={{ k8s_version }}-1.1"
+        state: present
+        update_cache: yes
+
+    - name: Marcar pacotes Kubernetes
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      with_items:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+    - name: Pull imagens Kubernetes
+      command: kubeadm config images pull --kubernetes-version=v{{ k8s_version }}
+      changed_when: false
+
+- name: Inicializar cluster no primeiro master
+  hosts: master[0]
+  become: true
+  tasks:
+    - name: Reset cluster Kubernetes
+      command: kubeadm reset -f
+      changed_when: true
+
+    - name: Remover diretório .kube
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /root/.kube
+        - /home/ubuntu/.kube
+
+    - name: Inicializar cluster Kubernetes
+      command: >
+        kubeadm init
+        --control-plane-endpoint="192.168.31.27:6443"
+        --upload-certs
+        --kubernetes-version=v{{ k8s_version }}
+        --pod-network-cidr={{ pod_network_cidr }}
+        --node-name=master1
+      register: kubeadm_init
+      changed_when: true
+
+    - name: Criar diretório .kube para root
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0755'
+
+    - name: Copiar kubeconfig para root
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+
+    - name: Criar diretório .kube para ubuntu
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        mode: '0755'
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copiar kubeconfig para ubuntu
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
         owner: ubuntu
         group: ubuntu
         mode: '0600'
-      loop: "{{ arquivos_config }}"
 
-    # - name: Configurar sysctl
-    #   sysctl:
-    #     name: "{{ item.name }}"
-    #     value: "{{ item.value }}"
-    #     state: present
-    #     reload: yes
-    #   loop: "{{ sysctl_configs }}"
+    - name: Configurar kubeconfig para usar HAProxy
+      shell: |
+        kubectl config set-cluster kubernetes \
+          --kubeconfig=/home/ubuntu/.kube/config \
+          --server=https://192.168.31.27:6443
+      changed_when: true
 
-    - name: Configurar timezone
-      timezone:
-        name: America/Sao_Paulo
+    - name: Copiar kubeconfig para uso local
+      fetch:
+        src: /home/ubuntu/.kube/config
+        dest: files/kubeconfig
+        flat: yes
+      when: inventory_hostname == groups['master'][0]
 
-    - name: Configurar locale
-      locale_gen:
-        name: pt_BR.UTF-8
-        state: present
+    - name: Instalar Calico CNI
+      command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/refs/heads/master/manifests/calico.yaml
+      changed_when: true
 
-    - name: Configurar aliases úteis
-      lineinfile:
-        path: /home/ubuntu/.bashrc
-        line: "{{ item }}"
-        state: present
-      loop:
-        - "alias ll='ls -la'"
-        - "alias k='kubectl'"
-        - "alias tf='terraform'"
-        - "alias d='docker'"
-      become_user: ubuntu
+    - name: Aguardar Calico estar pronto
+      shell: |
+        kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n kube-system --timeout=180s
+      changed_when: false
+      retries: 10
+      delay: 30
+      register: calico_ready
+      until: calico_ready.rc == 0
 
-    - name: Garantir que o serviço SSH esteja rodando
-      service:
-        name: ssh
-        state: started
-        enabled: yes 
+    - name: Obter token e hash para join
+      shell: |
+        JOIN_CMD=$(kubeadm token create --print-join-command)
+        CERT_KEY=$(kubeadm init phase upload-certs --upload-certs | tail -1)
+        echo "JOIN_CMD=${JOIN_CMD}"
+        echo "CERT_KEY=${CERT_KEY}"
+      register: join_info
+      changed_when: false
+
+    - name: Set join command fact
+      set_fact:
+        join_command: "{{ join_info.stdout_lines | select('match', '^JOIN_CMD=.*') | first | regex_replace('^JOIN_CMD=', '') }}"
+        cert_key: "{{ join_info.stdout_lines | select('match', '^CERT_KEY=.*') | first | regex_replace('^CERT_KEY=', '') }}"
+
+- name: Reset outros masters
+  hosts: master[1:]
+  become: true
+  tasks:
+    - name: Reset cluster Kubernetes
+      command: kubeadm reset -f
+      changed_when: true
+
+    - name: Remover diretório .kube
+      file:
+        path: "{{ item }}"
+        state: absent
+      with_items:
+        - /root/.kube
+        - /home/ubuntu/.kube
+
+- name: Reset workers
+  hosts: worker
+  become: true
+  tasks:
+    - name: Reset cluster Kubernetes
+      command: kubeadm reset -f
+      changed_when: true
+
+- name: Adicionar outros masters ao cluster
+  hosts: master[1:]
+  become: true
+  tasks:
+    - name: Join master nodes ao cluster
+      command: "{{ hostvars[groups['master'][0]]['join_command'] }} --control-plane --certificate-key {{ hostvars[groups['master'][0]]['cert_key'] }}"
+      changed_when: true
+
+    - name: Criar diretório .kube para root
+      file:
+        path: /root/.kube
+        state: directory
+        mode: '0755'
+
+    - name: Copiar kubeconfig para root
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /root/.kube/config
+        remote_src: yes
+
+    - name: Criar diretório .kube para ubuntu
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        mode: '0755'
+        owner: ubuntu
+        group: ubuntu
+
+    - name: Copiar kubeconfig para ubuntu
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
+        owner: ubuntu
+        group: ubuntu
+        mode: '0600'
+
+    - name: Configurar kubeconfig para usar HAProxy
+      shell: |
+        kubectl config set-cluster kubernetes \
+          --kubeconfig=/home/ubuntu/.kube/config \
+          --server=https://192.168.31.27:6443
+      changed_when: true
+
+    - name: Copiar kubeconfig para uso local
+      fetch:
+        src: /home/ubuntu/.kube/config
+        dest: files/kubeconfig
+        flat: yes
+      when: inventory_hostname == groups['master'][0]
+
+    - name: Instalar Calico CNI
+      command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/refs/heads/master/manifests/calico.yaml
+      changed_when: true
+
+    - name: Aguardar Calico estar pronto
+      shell: |
+        kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n kube-system --timeout=180s
+      changed_when: false
+      retries: 10
+      delay: 30
+      register: calico_ready
+      until: calico_ready.rc == 0
+
+    - name: Obter token e hash para join
+      shell: |
+        JOIN_CMD=$(kubeadm token create --print-join-command)
+        CERT_KEY=$(kubeadm init phase upload-certs --upload-certs | tail -1)
+        echo "JOIN_CMD=${JOIN_CMD}"
+        echo "CERT_KEY=${CERT_KEY}"
+      register: join_info
+      changed_when: false
+
+    - name: Set join command fact
+      set_fact:
+        join_command: "{{ join_info.stdout_lines | select('match', '^JOIN_CMD=.*') | first | regex_replace('^JOIN_CMD=', '') }}"
+        cert_key: "{{ join_info.stdout_lines | select('match', '^CERT_KEY=.*') | first | regex_replace('^CERT_KEY=', '') }}"
+
+- name: Adicionar workers ao cluster
+  hosts: worker
+  become: true
+  tasks:
+    - name: Join worker nodes ao cluster
+      command: "{{ hostvars[groups['master'][0]]['join_command'] }}"
+      changed_when: true
+
+- name: Configurar MetalLB no primeiro master
+  hosts: master[0]
+  become: true
+  tasks:
+    - name: Instalar MetalLB
+      command: kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/refs/heads/main/config/manifests/metallb-native.yaml
+      changed_when: true
+
+    - name: Criar secret memberlist
+      shell: |
+        kubectl create secret generic -n metallb-system memberlist --from-literal=secretkey="$(openssl rand -base64 128)"
+      changed_when: true
+      ignore_errors: true
+
+    - name: Aguardar MetalLB estar pronto
+      shell: |
+        kubectl wait --namespace metallb-system \
+          --for=condition=ready pod \
+          --selector=app=metallb \
+          --timeout=180s
+      changed_when: false
+      retries: 10
+      delay: 30
+      register: metallb_ready
+      until: metallb_ready.rc == 0
+
+    - name: Configurar MetalLB IPAddressPool e L2Advertisement
+      copy:
+        dest: /tmp/metallb-config.yaml
+        content: |
+          apiVersion: metallb.io/v1beta1
+          kind: IPAddressPool
+          metadata:
+            name: first-pool
+            namespace: metallb-system
+          spec:
+            addresses:
+            - {{ metallb_ip_range }}
+          ---
+          apiVersion: metallb.io/v1beta1
+          kind: L2Advertisement
+          metadata:
+            name: l2-advert
+            namespace: metallb-system
+          spec:
+            ipAddressPools:
+            - first-pool
+
+    - name: Aplicar configuração do MetalLB
+      command: kubectl apply -f /tmp/metallb-config.yaml
+      changed_when: true
+
+    - name: Configurar tolerations para MetalLB
+      shell: |
+        kubectl patch deployment controller -n metallb-system -p '{"spec": {"template": {"spec": {"tolerations": [{"key": "node-role.kubernetes.io/control-plane", "operator": "Exists", "effect": "NoSchedule"}]}}}}'
+      changed_when: true 

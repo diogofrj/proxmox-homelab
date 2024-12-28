@@ -1,68 +1,45 @@
 ---
-# Configurações gerais
-timezone: America/Sao_Paulo
-locale: pt_BR.UTF-8
+# Versões dos componentes
+k8s_version: "1.31.3"
+containerd_version: "1.7.24"
+runc_version: "1.2.2"
+cni_plugins_version: "1.6.1"
+calico_version: "3.29.1"
+metallb_version: "0.13.12"
 
 # Configurações de rede
-# network_interface: ens18
-# network_gateway: 192.168.31.1
-# network_dns: 
-#   - 8.8.8.8
-#   - 1.1.1.1
+pod_network_cidr: "10.10.0.0/16"
+service_cidr: "10.96.0.0/12"
+metallb_ip_range: "192.168.31.3-192.168.31.15"
 
-# Configurações de usuário
-# default_user: ubuntu
-# default_group: ubuntu
+# Configurações do HAProxy
+haproxy_stats_port: 8404
+haproxy_stats_user: "admin"
+haproxy_stats_password: "admin"
+k8s_api_port: 6443
 
-# Configurações de segurança
-# ssh_port: 22
-# allowed_ssh_networks:
-#   - 192.168.31.0/24
-#   - 10.0.0.0/8
+# IPs dos nodes
+haproxy_ip: "192.168.31.27"
+master_ips:
+  - "192.168.31.21"
+  - "192.168.31.22"
+  - "192.168.31.23"
+worker_ips:
+  - "192.168.31.24"
+  - "192.168.31.25"
+  - "192.168.31.26"
 
-# # Configurações de sistema
-# swappiness: 10
-# max_open_files: 65535
-# max_user_watches: 524288
-
-# # Diretórios padrão
-# base_dirs:
-#   - /opt/apps
-#   - /opt/data
-#   - /opt/backups
-#   - /opt/scripts
-
-# # Configurações de proxy (se necessário)
-# proxy_env:
-#   http_proxy: ""
-#   https_proxy: ""
-#   no_proxy: "localhost,127.0.0.1"
-
-# Configurações de pacotes
-common_packages:
+# Pacotes básicos
+packages:
+  - apt-transport-https
+  - ca-certificates
   - curl
+  - gpg
   - wget
   - vim
   - git
   - htop
   - net-tools
-  # - iptables-persistent
-  # - python3-pip
-  # - nfs-common
-
-# Configurações de sysctl
-# sysctl_settings:
-#   net.ipv4.ip_forward: 1
-#   net.bridge.bridge-nf-call-iptables: 1
-#   vm.swappiness: "{{ swappiness }}"
-#   fs.file-max: "{{ max_open_files }}"
-#   fs.inotify.max_user_watches: "{{ max_user_watches }}"
-
-# # Configurações de backup
-# backup:
-#   enabled: true
-#   retention_days: 7
-#   backup_dir: /opt/backups
-#   exclude_dirs:
-#     - /tmp
-#     - /var/tmp
+  - iptables-persistent
+  - python3-pip
+  - nfs-common
