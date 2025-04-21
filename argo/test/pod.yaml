@@ -9,7 +9,7 @@ metadata:
   name: tshoot-rs
   namespace: test
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: tshoot
