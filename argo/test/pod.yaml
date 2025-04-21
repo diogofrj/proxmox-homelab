@@ -17,6 +17,7 @@ spec:
     metadata:
       labels:
         app: tshoot
+    spec:
       containers:
       - name: netshoot
         image: nicolaka/netshoot
