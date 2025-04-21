@@ -3,7 +3,7 @@
 k8s_version: "1.31.3"
 containerd_version: "1.7.24"
 runc_version: "1.2.2"
-cni_plugins_version: "1.6.1"
+cni_plugins_version: "1.6.2"
 calico_version: "3.29.1"
 metallb_version: "0.13.12"
 
@@ -19,15 +19,12 @@ haproxy_stats_password: "admin"
 k8s_api_port: 6443
 
 # IPs dos nodes
-haproxy_ip: "192.168.31.27"
+# haproxy_ip: "192.168.31.27"
 master_ips:
   - "192.168.31.21"
-  - "192.168.31.22"
-  - "192.168.31.23"
 worker_ips:
   - "192.168.31.24"
   - "192.168.31.25"
-  - "192.168.31.26"
 
 # Pacotes básicos
 packages:

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: tshoot-rs
+  namespace: test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tshoot
+  template:
+    metadata:
+      labels:
+        app: tshoot
+      containers:
+      - name: netshoot
+        image: nicolaka/netshoot
+        command: ["/bin/bash"]
+        stdin: true
+        tty: true
+        lifecycle:
+          postStart:
+            exec:
+              command: ["apk", "add", "kcat"]
+      restartPolicy: Always

@@ -1,7 +1,7 @@
 locals {
   # global configurations
   agent         = 1
-  proxmox_node  = "bee"
+  proxmox_node  = "proxmox"
   onboot        = true
   template_id   = 9002
   template_name = "ubuntu-2404-cloud-init"
@@ -38,51 +38,51 @@ locals {
       vmid          = 901
       ip_last_octet = 21
       cores         = 2
-      memory        = 4096
+      memory        = 10000
       tags          = ["master"]
     }
-    "master2" = {
-      vmid          = 902
-      ip_last_octet = 22
-      cores         = 2
-      memory        = 4096
-      tags          = ["master"]
-    }
-    "master3" = {
-      vmid          = 903
-      ip_last_octet = 23
-      cores         = 2
-      memory        = 4096
-      tags          = ["master"]
-    }         
+    # "master2" = {
+    #   vmid          = 902
+    #   ip_last_octet = 22
+    #   cores         = 2
+    #   memory        = 4096
+    #   tags          = ["master"]
+    # }
+    # "master3" = {
+    #   vmid          = 903
+    #   ip_last_octet = 23
+    #   cores         = 2
+    #   memory        = 4096
+    #   tags          = ["master"]
+    # }         
     "worker1" = {
       vmid          = 904
       ip_last_octet = 24
       cores         = 2
-      memory        = 4096
+      memory        = 10000
       tags          = ["worker1"]
     }
     "worker2" = {
       vmid          = 905
       ip_last_octet = 25
       cores         = 2
-      memory        = 4096
+      memory        = 10000
       tags          = ["worker2"]
     }
-    "worker3" = {
-      vmid          = 906
-      ip_last_octet = 26
-      cores         = 2
-      memory        = 4096
-      tags          = ["worker3"]
-    }
-    "haproxy" = {
-      vmid          = 907
-      ip_last_octet = 27
-      cores         = 2
-      memory        = 2048
-      tags          = ["haproxy"]
-    }    
+    # "worker3" = {
+    #   vmid          = 906
+    #   ip_last_octet = 26
+    #   cores         = 2
+    #   memory        = 4096
+    #   tags          = ["worker3"]
+    # }
+    # "haproxy" = {
+    #   vmid          = 907
+    #   ip_last_octet = 27
+    #   cores         = 2
+    #   memory        = 2048
+    #   tags          = ["haproxy"]
+    # }    
   }
   # Combina nodes em um único mapa para uso geral
   vms = merge(local.nodes)
@@ -182,25 +182,13 @@ resource "proxmox_virtual_environment_vm" "master_nodes" {
 output "master1" {
   value = "ssh ubuntu@192.168.31.${local.nodes.master1.ip_last_octet}"
 }
-output "master2" {
-  value = "ssh ubuntu@192.168.31.${local.nodes.master2.ip_last_octet}"
-}
-output "master3" {
-  value = "ssh ubuntu@192.168.31.${local.nodes.master3.ip_last_octet}"
-}
 output "worker1" {
   value = "ssh ubuntu@192.168.31.${local.nodes.worker1.ip_last_octet}"
 }
 output "worker2" {
   value = "ssh ubuntu@192.168.31.${local.nodes.worker2.ip_last_octet}"
 }
-output "worker3" {
-  value = "ssh ubuntu@192.168.31.${local.nodes.worker3.ip_last_octet}"
-}
-output "haproxy" {
-  value = "ssh ubuntu@192.168.31.${local.nodes.haproxy.ip_last_octet}"
-}
-#-----------------------------------------------------------------------------------------
+#---------------------------------------------------------------------------------
 terraform {
   required_providers {
     proxmox = {
@@ -215,11 +203,8 @@ terraform {
 }
 
 provider "proxmox" {
-  endpoint  = "https://192.168.31.180:8006/"
-  api_token = "6215c36b-3cac-4335-b6d4-914420003088"
-  insecure  = true
-  ssh {
-    agent    = true
-    username = "terraform"
-  }
+  endpoint = "https://192.168.31.254:8006/"
+  username = "root@pam"
+  password = "homelab123"
+  insecure = true
 }
