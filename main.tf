@@ -69,13 +69,13 @@ locals {
       memory        = 10000
       tags          = ["worker2"]
     }
-    # "worker3" = {
-    #   vmid          = 906
-    #   ip_last_octet = 26
-    #   cores         = 2
-    #   memory        = 4096
-    #   tags          = ["worker3"]
-    # }
+    "worker3" = {
+      vmid          = 906
+      ip_last_octet = 26
+      cores         = 2
+      memory        = 4096
+      tags          = ["worker3"]
+    }
     # "haproxy" = {
     #   vmid          = 907
     #   ip_last_octet = 27
@@ -187,6 +187,9 @@ output "worker1" {
 }
 output "worker2" {
   value = "ssh ubuntu@192.168.31.${local.nodes.worker2.ip_last_octet}"
+}
+output "worker3" {
+  value = "ssh ubuntu@192.168.31.${local.nodes.worker3.ip_last_octet}"
 }
 #---------------------------------------------------------------------------------
 terraform {

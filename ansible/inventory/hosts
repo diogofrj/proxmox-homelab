@@ -9,7 +9,7 @@
 [worker]
 192.168.31.24 ansible_user=ubuntu
 192.168.31.25 ansible_user=ubuntu
-# 192.168.31.26 ansible_user=ubuntu
+192.168.31.26 ansible_user=ubuntu
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3

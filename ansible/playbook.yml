@@ -54,7 +54,7 @@
         - "192.168.31.21 master1"
         - "192.168.31.24 worker1"
         - "192.168.31.25 worker2"
-
+        - "192.168.31.26 worker3"
     - name: Instalar pacotes básicos
       apt:
         name: "{{ packages }}"
