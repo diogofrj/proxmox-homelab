@@ -11,6 +11,8 @@ spec:
     path: argocd/workloads/cert-manager/
     repoURL: https://github.com/diogofrj/proxmox-homelab
     targetRevision: main
+    kustomize:
+      enableHelm: true
   project: default
   syncPolicy:
     automated:
