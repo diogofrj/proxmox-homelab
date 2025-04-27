@@ -3,15 +3,17 @@ kind: Application
 metadata:
   name: cert-manager
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   destination:
     name: in-cluster
     namespace: cert-manager
   source:
     path: argocd/workloads/cert-manager/
-    repoURL: https://github.com/diogofrj/proxmox-homelab
+    repoURL: https://github.com/diogofrj/proxmox-homelab.git
     targetRevision: main
-  project: default
+  project: cloudseek
   syncPolicy:
     automated:
       prune: true
@@ -24,3 +26,28 @@ spec:
         duration: 5s
         maxDuration: 3m0s
         factor: 2
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-ingress
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  destination:
+    name: in-cluster
+    namespace: cert-manager
+  source:
+    path: argocd/workloads/cert-manager
+    repoURL: https://github.com/diogofrj/proxmox-homelab.git
+    targetRevision: main
+    directory:
+      include: traefik-ingressroute.yaml
+  project: cloudseek
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -12,8 +12,9 @@ spec:
     namespace: '*'
     server: https://kubernetes.default.svc
   sourceRepos:
-  - https://github.com/diogofrj/proxmox-homelab
+  - https://github.com/diogofrj/proxmox-homelab.git
   - https://helm.goharbor.io
+  - https://charts.jetstack.io
   roles:
   - name: admin
     description: Role com permissões administrativas para o projeto cloudseek

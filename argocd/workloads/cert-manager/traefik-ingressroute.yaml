@@ -1,0 +1,16 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`certmanager.cloudseek.com.br`)
+      kind: Rule
+      services:
+        - name: cert-manager-webhook
+          port: 443
+          kind: Service
+  tls: {} 
