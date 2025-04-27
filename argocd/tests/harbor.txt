@@ -1,0 +1,26 @@
+# 1. Verificar se o Harbor está acessível
+curl -k -s -o /dev/null -w "%{http_code}" "https://harbor.cloudseek.com.br"
+
+# 2. Login no Harbor
+docker login "https://harbor.cloudseek.com.br" -u "admin" -p "Harbor12345"
+
+# 3. Criar um projeto no Harbor via UI ou API
+curl -k -X POST -H "Content-Type: application/json" -u "admin:Harbor12345" \
+     "https://harbor.cloudseek.com.br/api/v2.0/projects" \
+     -d '{"project_name":"cloudseek", "public":false}'
+
+# 4. Construir a imagem de teste
+cd /home/ubuntu/homedash.cloudseek.com.br/proxmox-homelab/argocd/workloads/harbor
+docker build -t "harbor.cloudseek.com.br/cloudseek/teste-nginx:latest" .
+
+# 5. Enviar a imagem para o Harbor
+docker push "harbor.cloudseek.com.br/cloudseek/teste-nginx:latest"
+
+# 6. Verificar se a imagem está no Harbor
+curl -k -s -u "admin:Harbor12345" \
+     "https://harbor.cloudseek.com.br/api/v2.0/projects/cloudseek/repositories/teste-nginx/artifacts"
+
+# 7. Testar o download da imagem
+docker run -d -p 8080:80 harbor.cloudseek.com.br/cloudseek/teste-nginx:latest
+docker rmi "harbor.cloudseek.com.br/cloudseek/teste-nginx:latest" 
+docker pull "harbor.cloudseek.com.br/cloudseek/teste-nginx:latest"
