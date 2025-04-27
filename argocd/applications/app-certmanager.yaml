@@ -10,9 +10,13 @@ spec:
     name: in-cluster
     namespace: cert-manager
   source:
-    path: argocd/workloads/cert-manager/
-    repoURL: https://github.com/diogofrj/proxmox-homelab.git
-    targetRevision: main
+    chart: cert-manager
+    repoURL: https://charts.jetstack.io
+    targetRevision: v1.17.2
+    helm:
+      valueFiles:
+        - https://raw.githubusercontent.com/diogofrj/proxmox-homelab/main/argocd/workloads/cert-manager/values-chart_1-17-2.yaml
+      releaseName: cert-manager
   project: cloudseek
   syncPolicy:
     automated:
