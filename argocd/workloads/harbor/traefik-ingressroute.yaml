@@ -1,0 +1,25 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: harbor
+  namespace: harbor
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`harbor.cloudseek.com.br`)
+      kind: Rule
+      services:
+        - name: harbor-portal
+          port: 80
+          kind: Service
+        - name: harbor-core
+          port: 80
+          kind: Service
+        - name: harbor-jobservice
+          port: 80
+          kind: Service
+        - name: harbor-registry
+          port: 5000
+          kind: Service
+  tls: {} 
