@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
-  name: workloads
+  name: cloudseek
   namespace: argocd
 spec:
   clusterResourceWhitelist:
@@ -13,11 +13,12 @@ spec:
     server: https://kubernetes.default.svc
   sourceRepos:
   - https://github.com/diogofrj/proxmox-homelab
+  - https://helm.goharbor.io
   roles:
-  - name: custom-project-role
-    description: The "custom-project-role" will be applied to "diogo"
+  - name: admin
+    description: Role com permissões administrativas para o projeto cloudseek
     groups:
-    - diogo
+    - admin
     policies:
-    - p, proj:workloads:custom-project-role, projects, get, workloads, allow
-    - p, proj:workloads:custom-project-role, applications, *, workloads/*, allow
+    - p, proj:cloudseek:admin, projects, get, cloudseek, allow
+    - p, proj:cloudseek:admin, applications, *, cloudseek/*, allow 

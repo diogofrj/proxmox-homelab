@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: harbor-values
+  namespace: argocd
+data:
+  values.yaml: |
+    expose:
+      type: clusterIP
+      tls:
+        enabled: false
+      ingress:
+        hosts:
+          core: harbor.cloudseek.com.br
+    externalURL: https://harbor.cloudseek.com.br
+    harborAdminPassword: "Harbor12345"
+    database:
+      password: "password"
+    redis:
+      password: "password" 

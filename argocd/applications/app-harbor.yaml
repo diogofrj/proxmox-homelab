@@ -1,0 +1,69 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  destination:
+    name: in-cluster
+    namespace: harbor
+  sources:
+    - repoURL: https://github.com/diogofrj/proxmox-homelab
+      targetRevision: main
+      path: argocd/workloads/harbor
+      ref: values
+    - chart: harbor
+      repoURL: https://helm.goharbor.io
+      targetRevision: 1.17.0
+      helm:
+        releaseName: harbor
+        valueFiles:
+          - $values/harbor-values-chart1-17-0.yaml
+    - repoURL: https://github.com/diogofrj/proxmox-homelab
+      targetRevision: main
+      path: argocd/workloads/harbor
+      ref: ingress
+      directory:
+        include: traefik-ingressroute.yaml
+  project: cloudseek
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        maxDuration: 3m0s
+        factor: 2
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor-ingress
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  destination:
+    name: in-cluster
+    namespace: harbor
+  source:
+    path: argocd/workloads/harbor
+    repoURL: https://github.com/diogofrj/proxmox-homelab
+    targetRevision: main
+    directory:
+      include: traefik-ingressroute.yaml
+      recurse: false
+  project: cloudseek
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 
